@@ -2,12 +2,12 @@
 # frozen_string_literal: true
 
 class Postcard
-  def self.do_it!(args)
-    postcard = self.new(args)
-    postcard.do_it!
+  def self.do_it!(args, verbose: true)
+    postcard = self.new(args, verbose: verbose)
+    postcard.do_it!(verbose: verbose)
   end
 
-  def initialize(args = nil)
+  def initialize(args = nil, verbose: true)
     install_gems_and_require 'mini_magick'
     # Read and verify arguments:
     args = [] unless args.is_a?(Array)
@@ -28,35 +28,6 @@ class Postcard
     [ page_filename, card_filename ].each do |file|
       unless File.file?(file)
         puts "'#{file}' is not an existing file."
-        exit(0)
-      end
-    end
-    # Dimensions check:
-    puts
-    puts "Page large file:     '#{page_filename}'"
-    puts "Postcard image file: '#{card_filename}'"
-    puts
-    puts 'Calculating the dimension of the images...'
-    page_image = MiniMagick::Image.open(page_filename)
-    card_image = MiniMagick::Image.open(card_filename)
-    page_dimensions = page_image.dimensions
-    half_page = page_dimensions.last / 2
-    card_dimensions = card_image.dimensions
-    puts 'Dimensions'
-    puts "  Page:      #{page_dimensions.join(' x ')} pixels"
-    half_page_dimensions = [ page_dimensions.first, half_page ]
-    puts "  Half page: #{half_page_dimensions.join(' x ')} pixels"
-    puts "  Postcard:  #{card_dimensions.join(' x ')} pixels"
-    if (card_dimensions <=> [ page_dimensions.first, half_page ]) != -1
-      puts 'The postcard needs to fit within the page'
-      exit(1)
-    else
-      puts '  The postcard fits'
-    end
-    # Images opacity check:
-    {page_filename => page_image , card_filename => card_image}.each do |filename, img|
-      if img['%[opaque]'] != 'True'
-        puts "The source images '#{filename}' should be opaque."
         exit(1)
       end
     end
@@ -72,23 +43,57 @@ class Postcard
     end
     result_filename = new_filename_from(card_filename) if result_filename.empty?
     # Image dimensions check:
-    puts "Result file: '#{result_filename}'"
-    puts
+    if verbose
+      puts "Result file: '#{result_filename}'"
+      puts
+      puts "Page large file:     '#{page_filename}'"
+      puts "Postcard image file: '#{card_filename}'"
+      puts
+      puts 'Calculating the dimension of the images...'
+    end
+    page_image = MiniMagick::Image.open(page_filename)
+    card_image = MiniMagick::Image.open(card_filename)
+    page_dimensions = page_image.dimensions
+    half_page = page_dimensions.last / 2
+    card_dimensions = card_image.dimensions
+    if verbose
+      puts 'Dimensions'
+      puts "  Page:      #{page_dimensions.join(' x ')} pixels"
+      half_page_dimensions = [ page_dimensions.first, half_page ]
+      puts "  Half page: #{half_page_dimensions.join(' x ')} pixels"
+      puts "  Postcard:  #{card_dimensions.join(' x ')} pixels"
+    end
+    if (card_dimensions <=> [ page_dimensions.first, half_page ]) != -1
+      puts 'The postcard needs to fit within the page'
+      exit(1)
+    else
+      puts('  The postcard fits') if verbose
+    end
+    # Images opacity check:
+    { page_filename => page_image , card_filename => card_image }.each do |filename, img|
+      if img['%[opaque]'] != 'True'
+        puts "The source images '#{filename}' should be opaque."
+        exit(1)
+      end
+    end
+    # One image over another:
     left_margin  = (page_dimensions.first - card_dimensions.first) / 2
     upper_margin = (half_page - card_dimensions.last) / 2
-    puts "The card will be copied into the page, starting at the point "\
-         "(#{left_margin}, #{upper_margin}) from the upper left corner"
-    puts
-    puts 'Composing the result image in memory...'
+    if verbose
+      puts "The card will be copied into the page, starting at the point "\
+           "(#{left_margin}, #{upper_margin}) from the upper left corner"
+      puts
+      puts 'Composing the result image in memory...'
+    end
     result_image = page_image.composite(card_image) do |c|
       c.compose 'Over'                              # OverCompositeOp
       c.geometry "+#{left_margin}+#{upper_margin}"  # Copy from this point
     end
-    puts 'Writing into the new file...'
+    puts('Writing into the new file...') if verbose
     result_image.write result_filename
   end
 
-  def do_it!
+  def do_it!(verbose: true)
   end
 
   private
