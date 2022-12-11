@@ -2,27 +2,14 @@
 # frozen_string_literal: true
 
 class Postcard
-
   def self.do_it!(args)
     postcard = self.new(args)
     postcard.do_it!
   end
 
   def initialize(args = nil)
-    # -- Installing needed gem(s):
-
-    %w(mini_magick).each do |gem_name|
-      begin
-        Gem::Specification.find_by_name(gem_name)
-      rescue Gem::MissingSpecError
-        puts "Installing the '#{gem_name}' Ruby gem..."
-        system "gem install #{gem_name}"
-      end
-      require gem_name
-    end
-
-    # -- Read and verify arguments:
-
+    install_gems_and_require 'mini_magick'
+    # Read and verify arguments:
     args = [] unless args.is_a?(Array)
     args = args.first(3).compact.collect(&:to_s)
     if args.size < 2
@@ -36,6 +23,7 @@ class Postcard
            "If the file names include spaces, include them in quotes.\n\n"
       exit(1)
     end
+    # Source files exist:
     page_filename, card_filename, result_filename = args
     [ page_filename, card_filename ].each do |file|
       unless File.file?(file)
@@ -43,9 +31,7 @@ class Postcard
         exit(0)
       end
     end
-
     # Dimensions check:
-
     puts
     puts "Page large file:     '#{page_filename}'"
     puts "Postcard image file: '#{card_filename}'"
@@ -67,47 +53,26 @@ class Postcard
     else
       puts '  The postcard fits'
     end
-
-    # Opacity check:
-
+    # Images opacity check:
     {page_filename => page_image , card_filename => card_image}.each do |filename, img|
       if img['%[opaque]'] != 'True'
         puts "The source images '#{filename}' should be opaque."
         exit(1)
       end
     end
-
-
-    # Resulting target file:
-
-    result_filename = '' unless result_filename.is_a?(String)
-
-    if File.file?(result_filename)
-      puts 'The result file needs to be non-existing (just in case, to avoid problems)'
-      exit(1)
-    end
-
-    if result_filename.empty?
-      prefix = card_filename
-      extension = File.extname (card_filename)
-      unless extension.empty?
-        extension = ".#{extension}" if !extension.start_with?('.')  # Windooze?
-        prefix = prefix.delete_suffix extension
+    # Resulting image filename:
+    if result_filename.is_a?(String)
+      if File.file?(result_filename)
+        puts 'The result file needs to be non-existing (just in case, to avoid '\
+             'overwriting existing files)'
+        exit(1)
       end
-      num = 1
-      result_filename = "#{prefix}_#{num}#{extension}"
-      while File.file?(result_filename)
-        num += 1
-        result_filename = "#{prefix}_#{num}#{extension}"
-      end
+    else
+      result_filename = ''
     end
-
-    puts
+    result_filename = new_filename_from(card_filename) if result_filename.empty?
+    # Image dimensions check:
     puts "Result file: '#{result_filename}'"
-
-
-    # -- Do it:
-
     puts
     left_margin  = (page_dimensions.first - card_dimensions.first) / 2
     upper_margin = (half_page - card_dimensions.last) / 2
@@ -124,6 +89,42 @@ class Postcard
   end
 
   def do_it!
+  end
+
+  private
+
+  def install_gems_and_require(gem_name, verbose: true)
+    begin
+      Gem::Specification.find_by_name(gem_name)
+    rescue Gem::MissingSpecError
+      puts("Installing the '#{gem_name}' Ruby gem...") if verbose
+      system "gem install #{gem_name}"
+    end
+    require gem_name
+  end
+
+  # -- Utility methods (functions):
+
+  def new_filename_from(filename)
+    if filename.nil? || filename.empty?
+      puts 'No file name given, making up one'
+      prefix = 'new_result_file'
+      extension = ''
+    else
+      prefix = filename
+      extension = File.extname (prefix)
+      unless extension.empty?
+        extension = ".#{extension}" if !extension.start_with?('.')  # Windooze?
+        prefix = prefix.delete_suffix extension
+      end
+    end
+    result_filename = "#{prefix}#{extension}"
+    num = 0
+    while File.file?(result_filename)
+      num += 1
+      result_filename = "#{prefix}_#{num}#{extension}"
+    end
+    result_filename
   end
 end
 
