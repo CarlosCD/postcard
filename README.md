@@ -10,6 +10,6 @@ It requires ImageMagick. In mac OS it can be installed with
 
 Example of usage, from the Terminal:
 
-    ./postcard.rb white_page.png artwork_rotated.png card_with_image.png
+    ./postcard.rb white_page.png artwork_upsidedown.png card_with_image.png
 
 December 2022

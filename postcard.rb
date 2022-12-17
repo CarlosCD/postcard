@@ -24,27 +24,27 @@ class Postcard
       exit(1)
     end
     # Source files exist:
-    page_filename, card_filename, @result_filename = args
+    page_filename, card_filename, @result_filename1 = args
     [ page_filename, card_filename ].each do |file|
       unless File.file?(file)
         puts "'#{file}' is not an existing file."
         exit(1)
       end
     end
-    # Resulting image filename:
-    if @result_filename.is_a?(String)
-      if File.file?(@result_filename)
+    # First resulting image filename (there will be other transformations):
+    if @result_filename1.is_a?(String)
+      if File.file?(@result_filename1)
         puts 'The result file needs to be non-existing (just in case, to avoid '\
              'overwriting existing files)'
         exit(1)
       end
     else
-      @result_filename = ''
+      @result_filename1 = ''
     end
-    @result_filename = new_filename_from(card_filename) if @result_filename.empty?
+    @result_filename1 = new_filename_from(card_filename) if @result_filename1.empty?
     # Image dimensions check:
     if verbose
-      puts "Result file: '#{@result_filename}'"
+      puts "Result file: '#{@result_filename1}'"
       puts
       puts "Page large file:     '#{page_filename}'"
       puts "Postcard image file: '#{card_filename}'"
@@ -79,10 +79,13 @@ class Postcard
   end
 
   def do_it!(verbose: true)
-    # One image over another:
+    # 1. One image over another:
     result_image = images_merge(@page_image, @card_image, @card_dimensions,
                                 @page_dimensions.first, @half_page,
-                                @result_filename, verbose: verbose)
+                                @result_filename1, verbose: verbose)
+    # 2. Rotate the image sideways (landscape):
+    result_filename2 = new_filename_from(@result_filename1,suffix: '-Rotated')
+    rotate_image(result_image, result_filename2)
   end
 
   private
@@ -101,8 +104,8 @@ class Postcard
 
   def images_merge(large_image, small_image, small_dimensions, page_width,
                    half_page_size, result_filename, verbose: true)
-    left_margin  = (page_width -  small_dimensions.first) / 2
-    upper_margin = (half_page_size -  small_dimensions.last) / 2
+    left_margin  = (page_width - small_dimensions.first) / 2
+    upper_margin = (half_page_size - small_dimensions.last) / 2
     if verbose
       puts "The card will be copied into the page, starting at the point "\
            "(#{left_margin}, #{upper_margin}) from the upper left corner"
@@ -118,9 +121,18 @@ class Postcard
     result_image
   end
 
+  # Some images, in particular PDFs with text get the text distorted when rotating.
+  #   It seems to work better with a PNGs.
+  def rotate_image(image, new_filename, verbose: true)
+    puts('Rotating the image -90 degrees...') if verbose
+    image.combine_options{ |opt| opt.rotate '-90' }
+    puts("Saving the image as '#{new_filename}'...") if verbose
+    image.write new_filename
+  end
+
   # -- Utility methods (functions):
 
-  def new_filename_from(filename)
+  def new_filename_from(filename, suffix: nil)
     if filename.nil? || filename.empty?
       puts 'No file name given, making up one'
       prefix = 'new_result_file'
@@ -132,6 +144,9 @@ class Postcard
         extension = ".#{extension}" if !extension.start_with?('.')  # Windooze?
         prefix = prefix.delete_suffix extension
       end
+    end
+    if suffix.is_a?(String) && !suffix.empty?
+      prefix += suffix
     end
     result_filename = "#{prefix}#{extension}"
     num = 0
