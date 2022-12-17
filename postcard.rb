@@ -80,20 +80,9 @@ class Postcard
 
   def do_it!(verbose: true)
     # One image over another:
-    left_margin  = (@page_dimensions.first - @card_dimensions.first) / 2
-    upper_margin = (@half_page - @card_dimensions.last) / 2
-    if verbose
-      puts "The card will be copied into the page, starting at the point "\
-           "(#{left_margin}, #{upper_margin}) from the upper left corner"
-      puts
-      puts 'Composing the result image in memory...'
-    end
-    result_image = @page_image.composite(@card_image) do |c|
-      c.compose 'Over'                              # OverCompositeOp
-      c.geometry "+#{left_margin}+#{upper_margin}"  # Copy from this point
-    end
-    puts('Writing into the new file...') if verbose
-    result_image.write @result_filename
+    result_image = images_merge(@page_image, @card_image, @card_dimensions,
+                                @page_dimensions.first, @half_page,
+                                @result_filename, verbose: verbose)
   end
 
   private
@@ -106,6 +95,27 @@ class Postcard
       system "gem install #{gem_name}"
     end
     require gem_name
+  end
+
+  # -- Image manipulations:
+
+  def images_merge(large_image, small_image, small_dimensions, page_width,
+                   half_page_size, result_filename, verbose: true)
+    left_margin  = (page_width -  small_dimensions.first) / 2
+    upper_margin = (half_page_size -  small_dimensions.last) / 2
+    if verbose
+      puts "The card will be copied into the page, starting at the point "\
+           "(#{left_margin}, #{upper_margin}) from the upper left corner"
+      puts
+      puts 'Composing the result image in memory...'
+    end
+    result_image = large_image.composite(small_image) do |c|
+      c.compose 'Over'                              # OverCompositeOp
+      c.geometry "+#{left_margin}+#{upper_margin}"  # Copy from this point
+    end
+    puts('Writing into the new file...') if verbose
+    result_image.write result_filename
+    result_image
   end
 
   # -- Utility methods (functions):
