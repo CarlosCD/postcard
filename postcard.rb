@@ -86,6 +86,9 @@ class Postcard
     # 2. Rotate the image sideways (landscape):
     result_filename2 = new_filename_from(@result_filename1,suffix: '-Rotated')
     rotate_image(result_image, result_filename2)
+    # 3. Copy of the file as PDF:
+    result_filename3 = new_filename_from(result_filename2, new_extension: '.pdf', suffix: '-Final')
+    transform_to_pdf(result_image, result_filename3)
   end
 
   private
@@ -130,9 +133,16 @@ class Postcard
     image.write new_filename
   end
 
+  def transform_to_pdf(image, pdf_filename, verbose: true)
+    puts('Changing the image format to PDF...') if verbose
+    image.format 'pdf'
+    puts("Saving the image as '#{pdf_filename}'...") if verbose
+    image.write pdf_filename
+  end
+
   # -- Utility methods (functions):
 
-  def new_filename_from(filename, suffix: nil)
+  def new_filename_from(filename, new_extension: nil, suffix: nil)
     if filename.nil? || filename.empty?
       puts 'No file name given, making up one'
       prefix = 'new_result_file'
@@ -147,6 +157,10 @@ class Postcard
     end
     if suffix.is_a?(String) && !suffix.empty?
       prefix += suffix
+    end
+    if new_extension.is_a?(String) && !new_extension.empty?
+      extension = new_extension
+      extension = ".#{extension}" if !new_extension.start_with?('.') 
     end
     result_filename = "#{prefix}#{extension}"
     num = 0
