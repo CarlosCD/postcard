@@ -11,40 +11,26 @@ class Postcard
     install_gems_and_require 'mini_magick'
     # Read and verify arguments:
     args = [] unless args.is_a?(Array)
-    args = args.first(3).compact.collect(&:to_s)
-    if args.size < 2
+    args = args.first(2).compact.collect(&:to_s)
+    if args.size != 2
       puts "Please pass at least two arguments (#{args.size} were received):\n"\
            "  1. The file name of a large image where the postcard will be added to "\
            "(white page)\n"\
            "  2. The file name of smaller image to be inserted in the first file "\
            "(postcard)\n\n"\
-           "  3. Optionally, the resulting file (if none passed a new file will be "\
-           "created)\n\n"\
            "If the file names include spaces, include them in quotes.\n\n"
       exit(1)
     end
     # Source files exist:
-    page_filename, card_filename, @result_filename1 = args
+    page_filename, card_filename = args
     [ page_filename, card_filename ].each do |file|
       unless File.file?(file)
         puts "'#{file}' is not an existing file."
         exit(1)
       end
     end
-    # First resulting image filename (there will be other transformations):
-    if @result_filename1.is_a?(String)
-      if File.file?(@result_filename1)
-        puts 'The result file needs to be non-existing (just in case, to avoid '\
-             'overwriting existing files)'
-        exit(1)
-      end
-    else
-      @result_filename1 = ''
-    end
-    @result_filename1 = new_filename_from(card_filename) if @result_filename1.empty?
     # Image dimensions check:
     if verbose
-      puts "Result file: '#{@result_filename1}'"
       puts
       puts "Page large file:     '#{page_filename}'"
       puts "Postcard image file: '#{card_filename}'"
@@ -80,11 +66,12 @@ class Postcard
 
   def do_it!(verbose: true)
     # 1. One image over another:
+    result_filename1 = new_filename_from('result_file.png')
     result_image = images_merge(@page_image, @card_image, @card_dimensions,
                                 @page_dimensions.first, @half_page,
-                                @result_filename1, verbose: verbose)
+                                result_filename1, verbose: verbose)
     # 2. Rotate the image sideways (landscape):
-    result_filename2 = new_filename_from(@result_filename1,suffix: '-Rotated')
+    result_filename2 = new_filename_from(result_filename1,suffix: '-Rotated')
     rotate_image(result_image, result_filename2)
     # 3. Copy of the file as PDF:
     result_filename3 = new_filename_from(result_filename2, new_extension: '.pdf', suffix: '-Final')
