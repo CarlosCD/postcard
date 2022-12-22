@@ -9,7 +9,7 @@ It requires ImageMagick, which in macOS it can be installed with
 
 Example of usage (with the sample image file):
 
-    ./postcard.rb sample/artwork_upsidedown.png
+    ./postcard.rb sample/artwork.png
 
 This is just a simple utility for me to use, more to come soon, maybe.
 
