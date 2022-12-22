@@ -10,37 +10,35 @@ class Postcard
   def initialize(args = nil, verbose: true)
     install_gems_and_require 'mini_magick'
     # Read and verify arguments:
-    args = [] unless args.is_a?(Array)
-    args = args.first(2).compact.collect(&:to_s)
-    if args.size != 2
-      puts "Please pass at least two arguments (#{args.size} were received):\n"\
-           "  1. The file name of a large image where the postcard will be added to "\
-           "(white page)\n"\
-           "  2. The file name of smaller image to be inserted in the first file "\
-           "(postcard)\n\n"\
-           "If the file names include spaces, include them in quotes.\n\n"
+    card_filename = args.first.to_s if args.is_a?(Array)
+    if !card_filename.is_a?(String) || card_filename.empty?
+      puts "Please pass one argument (#{args.size} were received):\n"\
+           "The file name of the smaller image to be inserted in the postcard\n\n"\
+           "If the file name include spaces, include them in quotes.\n\n"
+      exit(1)
+    elsif !File.file?(card_filename)
+      # The file exists:
+      puts "The given file '#{card_filename}' does not exist."
       exit(1)
     end
-    # Source files exist:
-    page_filename, card_filename = args
-    [ page_filename, card_filename ].each do |file|
-      unless File.file?(file)
-        puts "'#{file}' is not an existing file."
-        exit(1)
-      end
-    end
+    # This could be an argument or config data, in a YAML file, or a
+    #   set of global constants:
+    # ---
+    @dpi = 1_200
+    #   Maybe from the size of the page (inches), for a given resolution (DPI):
+    @page_dimensions = [ 10_200, 13_200 ]
+    @half_page = 13_200 / 2                # Calculated from the page's dimensions
+    @text = '(untitled)               Pencil on newspaper                '\
+            'https://my_art_site.example.com/untitled_artwork.html'
+    # ---
     # Image dimensions check:
     if verbose
       puts
-      puts "Page large file:     '#{page_filename}'"
       puts "Postcard image file: '#{card_filename}'"
       puts
-      puts 'Calculating the dimension of the images...'
+      puts 'Calculating the dimension of the image...'
     end
-    @page_image = MiniMagick::Image.open(page_filename)
     @card_image = MiniMagick::Image.open(card_filename)
-    @page_dimensions = @page_image.dimensions
-    @half_page = @page_dimensions.last / 2
     @card_dimensions = @card_image.dimensions
     if verbose
       puts 'Dimensions'
@@ -55,27 +53,36 @@ class Postcard
     else
       puts('  The postcard fits') if verbose
     end
-    # Images opacity check:
-    { page_filename => @page_image , card_filename => @card_image }.each do |filename, img|
-      if img['%[opaque]'] != 'True'
-        puts "The source images '#{filename}' should be opaque."
-        exit(1)
-      end
+    # Image opacity check:
+    if @card_image['%[opaque]'] != 'True'
+      puts "The source image '#{card_filename}' should be opaque."
+      exit(1)
     end
   end
 
   def do_it!(verbose: true)
-    # 1. One image over another:
-    result_filename1 = new_filename_from('result_file.png')
-    result_image = images_merge(@page_image, @card_image, @card_dimensions,
+    # 1. White image with text:
+    result_filename1, page_image = new_white_image_with_text(filename: 'result_file.png',
+                                                             dimensions: @page_dimensions,
+                                                             dpi: @dpi, text: @text,
+                                                             verbose: verbose)
+    if result_filename1.nil?
+      puts 'Unable to create the white image page, where the card would need to be '\
+           'added to'
+      exit(1)
+    end
+    # 2. One image over another:
+    result_filename2 = new_filename_from(result_filename1)
+    result_image = images_merge(page_image, @card_image, @card_dimensions,
                                 @page_dimensions.first, @half_page,
-                                result_filename1, verbose: verbose)
-    # 2. Rotate the image sideways (landscape):
-    result_filename2 = new_filename_from(result_filename1,suffix: '-Rotated')
-    rotate_image(result_image, result_filename2)
-    # 3. Copy of the file as PDF:
-    result_filename3 = new_filename_from(result_filename2, new_extension: '.pdf', suffix: '-Final')
-    transform_to_pdf(result_image, result_filename3)
+                                result_filename2, verbose: verbose)
+    # 3. Rotate the image sideways (landscape):
+    result_filename3 = new_filename_from(result_filename2, suffix: '-Rotated')
+    rotate_image(result_image, result_filename3)
+    # 4. Copy of the file as PDF:
+    result_filename4 = new_filename_from(result_filename3, new_extension: '.pdf',
+                                         suffix: '-Final')
+    transform_to_pdf(result_image, result_filename4)
   end
 
   private
@@ -91,6 +98,48 @@ class Postcard
   end
 
   # -- Image manipulations:
+
+  # Returns two values: either both nil, if something goes wrong,
+  #   or the filename and an Image
+  def new_white_image_with_text(filename: nil, dimensions: [ 10_200, 13_200 ],
+                                dpi: 1_200, text: nil, verbose: true)
+    # Sanity checks:
+    unless (dimensions.is_a?(Array) && (dimensions.size == 2) &&
+            (dimensions == dimensions.collect{|d| d.to_s.to_i}))
+      puts('Page dimensions not valid.') if verbose
+      return [ nil ]*2
+    end
+    if (dpi != dpi.to_s.to_i) || (dpi <= 0)
+      puts ('dpi should be a positive integer value.') if verbose
+      return [ nil ]*2
+    end
+    # If the filename passed exists, pick another:
+    image_filename = new_filename_from filename, new_extension: '.png'
+    # Create image:
+    if verbose
+      puts "New image filename: '#{image_filename}'"
+      puts "Dimensions: #{dimensions.join('x')}"
+      puts "Resolution: #{dpi} Pixels/inch"
+      puts 'Text:       Arial 6pt.'
+    end
+    # Magimagick convert command:
+    MiniMagick::Tool::Convert.new do |command|
+      command.size("#{dimensions.join('x')}")
+      command << 'canvas:white'
+      command.units 'pixelsperinch'
+      command.density(dpi)
+      if text.is_a?(String) && !text.empty?
+        command.font('Arial')
+        command.pointsize(6)
+        command.gravity('SouthEast')
+        command.annotate('+800+600')  # Bottom and right margins
+        command << "#{text}"
+      end
+      # ColorSpace sRGB, instead of Gray:
+      command << "PNG24:#{image_filename}"
+    end
+    [ image_filename, MiniMagick::Image.open(image_filename) ]
+  end
 
   def images_merge(large_image, small_image, small_dimensions, page_width,
                    half_page_size, result_filename, verbose: true)
