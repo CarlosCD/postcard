@@ -25,11 +25,22 @@ class Postcard
     #   set of global constants:
     # ---
     @dpi = 1_200
-    #   Maybe from the size of the page (inches), for a given resolution (DPI):
-    @page_dimensions = [ 10_200, 13_200 ]
-    @half_page = 13_200 / 2                # Calculated from the page's dimensions
+    page_width  = 11
+    page_height = 8.5
+    page_units = 'inches'
     @text = '(untitled)               Pencil on newspaper                '\
             'https://my_art_site.example.com/untitled_artwork.html'
+    @postcard_result_file = '5.postcard-final.pdf'
+    # ---
+    # Derived configuration calculations:
+    # ---
+    # Transforms into inches (as we use DPI):
+    units_scale = (page_units.to_s.downcase == 'centimeters') ? 2.54 : 1
+    page_width_inches  = page_width  / units_scale
+    page_height_inches = page_height / units_scale
+    # Portrait orientation, 8.5x11 inches => [10_200, 13_200] pixels
+    @page_dimensions = [ (page_height_inches*@dpi).to_i, (page_width_inches*@dpi).to_i ]
+    @half_page = @page_dimensions.last / 2  # 13_200 / 2
     # ---
     # Image dimensions check:
     if verbose
@@ -74,7 +85,7 @@ class Postcard
     end
     # 3. One image over another:
     result_filename3 = new_filename_from('3.images_merged.png')
-    #   The dimensions for the card should not have been changed:
+    #   The dimensions for the card should not have been changed when rotated upside down:
     new_image = images_merge(new_image, @card_image, @card_dimensions,
                              @page_dimensions.first, @half_page,
                              new_filename: result_filename3, verbose: verbose)
@@ -82,7 +93,7 @@ class Postcard
     result_filename4 = new_filename_from('4.rotated_landscape.png')
     rotate_image new_image, angle: '-90', new_filename: result_filename4
     # 5. Copy of the file as PDF:
-    result_filename5 = new_filename_from('5.final_pdf_result.pdf')
+    result_filename5 = new_filename_from(@postcard_result_file, new_extension: '.pdf')
     transform_to_pdf(new_image, new_filename: result_filename5)
   end
 
