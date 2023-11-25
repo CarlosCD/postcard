@@ -1,15 +1,91 @@
 #!/usr/bin/env ruby
 # frozen_string_literal: true
 
+require 'yaml'
+
 class Postcard
-  def self.do_it!(args)
-    verbose = !args.delete('-v').nil?
-    card_filename = args.first.to_s if args.is_a?(Array)
-    postcard = self.new(card_filename, verbose: verbose)
-    postcard.do_it!(verbose: verbose)
+  class << self
+    def do_it!(args)
+      verbose = !args.delete('-v').nil?
+      if args.delete('-g').nil?
+        config_hash = read_configuration(verbose: verbose)
+        card_filename = args.first.to_s if args.is_a?(Array)
+        postcard = new(card_filename, config: config_hash, verbose: verbose)
+        postcard.do_it!(verbose: verbose)
+      else
+        if File.file?(CONFIG_FILENAME)
+          puts "A file called '#{CONFIG_FILENAME}' already exists, "\
+               "please rename it if you want to generate a new one."
+        else
+          generate_config_yaml
+        end
+      end
+    end
+
+    private
+
+    CONFIG_FILENAME = 'postcard.yml'
+    DEFAULT_CONFIG = { 'dpi'         => 1_200,
+                       'page_width'  => 11,
+                       'page_height' => 8.5,
+                       'units'       => 'inches',
+                       'text'        => '(untitled)               Pencil on newspaper                '\
+                                        'https://my_art_site.example.com/untitled_artwork.html',
+                       'result_file' => '5.postcard-final.pdf' }
+
+    def generate_config_yaml
+      puts "Generating a new configuration file '#{CONFIG_FILENAME}'..."
+      File.open(CONFIG_FILENAME, 'w') {|f| f.write DEFAULT_CONFIG.to_yaml }
+      puts 'Done.'
+    end
+
+    def read_configuration(verbose: false)
+      config_hash = {}
+      if File.file?(CONFIG_FILENAME)
+        puts "A configuration YAML file ('#{CONFIG_FILENAME}') already exists, using it..."
+        yaml_content = File.read(CONFIG_FILENAME)
+        yaml_hash = YAML.safe_load(yaml_content, symbolize_names: true)
+        if yaml_hash.is_a?(Hash)
+          yaml_hash.each do |k,v|
+            if %i(dpi page_width page_height).include?(k)
+              if v.is_a?(Numeric)
+                config_hash[k] = v
+              else
+                puts "The value for #{k} should be Numeric. We will ignore it and use a default."
+              end
+            elsif %i(result_file units text).include?(k)
+              if v.is_a?(String) && (v.size > 0) && (k != :units || %w(centimeters inches).include?(v))
+                config_hash[k] = v
+              else
+                puts "The value for #{k} is not a valid String. We will ignore it and use a default."
+              end
+            else
+              puts "YAML element '#{k}' is not valid. We will ignore it and use a default."
+            end
+          end
+        end
+        (DEFAULT_CONFIG.keys.collect(&:to_sym) - config_hash.keys).each do |k|
+          v = DEFAULT_CONFIG[k.to_s]
+          config_hash[k] = v
+          puts "'#{k}' was missing in the configuration YAML file. It will be set as '#{v}'"
+        end
+      end
+      DEFAULT_CONFIG.each do |k,v|
+        config_hash[k.to_sym] ||= DEFAULT_CONFIG[k]
+      end
+      if verbose
+        puts 'Configuration to be used:'
+        config_hash.each do |k,v|
+          val = v.is_a?(String) ? "'#{v}'" : v
+          puts "#{k}:".ljust(14) + "#{val}"
+        end
+        puts
+      end
+      config_hash
+    end
   end
 
-  def initialize(card_filename = nil, verbose: false)
+  def initialize(card_filename = nil, config: {}, verbose: false)
     # Read and verify card_filename:
     if !card_filename.is_a?(String) || card_filename.empty?
       puts "Please pass as an argument the file name of the image to be inserted in the postcard.\n\n"\
@@ -23,16 +99,14 @@ class Postcard
     puts 'Source artwork file:'.ljust(28) + "'#{card_filename}'"
     puts
     # Configuration:
-    #   This could be an argument or config data, in a YAML file, or a
-    #   set of global constants:
     # ---
-    @dpi = 1_200
-    page_width  = 11
-    page_height = 8.5
-    page_units = 'inches'
-    @text = '(untitled)               Pencil on newspaper                '\
-            'https://my_art_site.example.com/untitled_artwork.html'
-    @postcard_result_file = '5.postcard-final.pdf'
+    @dpi = config[:dpi] || 1_200
+    page_width  = config[:page_width] || 11
+    page_height = config[:page_height] || 8.5
+    page_units = config[:units] || 'inches'
+    @text = config[:text] || '(untitled)               Pencil on newspaper                '\
+                             'https://my_art_site.example.com/untitled_artwork.html'
+    @postcard_result_file = config[:result_file] || '5.postcard-final.pdf'
     # ---
     # Derived configuration calculations:
     # ---

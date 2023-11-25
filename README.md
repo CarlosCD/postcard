@@ -9,15 +9,18 @@ It requires ImageMagick, which in macOS it can be installed with
 
     brew install imagemagick
 
-Simple example of usage (with a sample image file):
-
-    ./postcard.rb sample/artwork.png
-
 Special options:
+
+    -g  Generates a YAML configuration file and exits (no postcard generated).
+        The file can be used to set the text to be printed or the page size.
 
     -v  Verbose mode
 
-Example:
+Usage examples:
+
+    ./postcard.rb -g
+
+    ./postcard.rb sample/artwork.png
 
     ./postcard.rb -v sample/artwork.png
 
