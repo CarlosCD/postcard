@@ -123,19 +123,19 @@ class Postcard
     # Image dimensions check:
     puts('Calculating the dimension of the image...') if verbose
     @card_image = MiniMagick::Image.open(card_filename)
-    @card_dimensions = @card_image.dimensions
-    half_page_dimensions = [ @page_dimensions.first, @half_page ]
+    card_dimensions = @card_image.dimensions
+    @half_page_dimensions = [ @page_dimensions.first, @half_page ]
     if verbose
       puts '  Dimensions:'
-      puts "    Postcard:  #{@card_dimensions.join(' x ')} pixels"
-      puts "    Page:      #{@page_dimensions.join(' x ')} pixels"
-      puts "    Half page: #{half_page_dimensions.join(' x ')} pixels"
+      puts "    Full page:      #{@page_dimensions.join(' x ')} pixels"
+      puts "    Half page:      #{@half_page_dimensions.join(' x ')} pixels"
+      puts "    Postcard image: #{card_dimensions.join(' x ')} pixels, "\
+           "#{@card_image.resolution.uniq.join('x')} dpi"
     end
-    if (@card_dimensions <=> half_page_dimensions) != -1
+    if (card_dimensions.first <= 0) || (card_dimensions.last <= 0) ||
+       (@half_page_dimensions.first <= 0) || (@half_page_dimensions.last <= 0)
       puts 'Error: the postcard needs to fit within the page'
       exit(1)
-    elsif verbose
-      puts '  The postcard fits'
     end
     # Image opacity check:
     if @card_image['%[opaque]'] != 'True'
@@ -145,6 +145,12 @@ class Postcard
   end
 
   def do_it!(verbose: false)
+    # 0. Resize only if too large, and adjust dpi:
+    result_filename0 = new_filename_from('0.artwork_resize.png')
+    margin_pixels = (0.5*@dpi).to_i  # 0.5 inches => 600 pixels at 1,200 dpi
+    dimension_with_margins = @half_page_dimensions.collect{|s| s - margin_pixels}
+    resize_and_dpi_if_larger(@card_image, new_filename: result_filename0,
+                             dimensions: dimension_with_margins, dpi: @dpi, verbose: verbose)
     # 1. Rotate the artwork upside down:
     result_filename1 = new_filename_from('1.artwork_upsidedown.png')
     rotate_image @card_image, angle: '180', new_filename: result_filename1, verbose: verbose
@@ -161,8 +167,7 @@ class Postcard
     puts '2. White image with text as'.ljust(28) + "'#{result_filename2}'"
     # 3. Merge one image over the other:
     result_filename3 = new_filename_from('3.images_merged.png')
-    #   The dimensions for the card should not have been changed when rotated it upside down:
-    new_image = images_merge(new_image, @card_image, @card_dimensions,
+    new_image = images_merge(new_image, @card_image, @card_image.dimensions,
                              @page_dimensions.first, @half_page,
                              new_filename: result_filename3, verbose: verbose)
     puts '3. Image files merged as'.ljust(28) + "'#{result_filename3}'"
@@ -190,6 +195,51 @@ class Postcard
 
   # -- Image manipulations:
 
+  def resize_and_dpi_if_larger(image, new_filename: nil, dimensions: [ 9_600, 6_000 ], dpi: 1_200,
+                               verbose: false)
+    # Sanity checks:
+    unless (dimensions.is_a?(Array) && (dimensions.size == 2) &&
+            (dimensions == dimensions.collect{|d| d.to_s.to_i}))
+      puts('Image dimensions not valid.') if verbose
+      return
+    end
+    if (dpi != dpi.to_s.to_i) || (dpi <= 0)
+      puts ('dpi should be a positive integer.') if verbose
+      return
+    end
+    # Has to be adjusted?
+    image_resolution = image.resolution.uniq
+    resolution_needs_changes = (image_resolution.size > 1) || (image_resolution.first != dpi)
+    resize_needed = (image.dimensions.first > dimensions.first) ||
+                    (image.dimensions.last > dimensions.last)
+    if resolution_needs_changes || resize_needed
+      image.resize(dimensions.join('x')) if resize_needed
+      image.density(dpi) if resolution_needs_changes
+      puts("  Original image changed to #{image.dimensions.join('x')} pixels and #{dpi} dpi") if verbose
+      if new_filename
+        puts("  Saving the image...\n\n") if verbose
+        image.write new_filename
+        puts '0. Image resized, as'.ljust(28) + "'#{new_filename}'"
+      else
+        puts '0. Image resized.'
+      end
+    end
+  end
+
+  # Some images, in particular PDFs with text get the text distorted when rotating.
+  #   It seems to work better with a PNGs.
+  def rotate_image(image, angle: '0', new_filename: nil, verbose: false)
+    if verbose
+      puts
+      puts "  Rotating the image #{angle} degrees..."
+    end
+    image.combine_options{ |opt| opt.rotate angle }
+    if new_filename
+      puts("  Saving the image...\n\n") if verbose
+      image.write new_filename
+    end
+  end
+
   # Returns either nil, if something goes wrong, or an Image
   def new_white_image_with_text(dimensions: [ 10_200, 13_200 ], dpi: 1_200, text: nil, new_filename: nil,
                                 verbose: false)
@@ -210,7 +260,7 @@ class Postcard
     end
     # Create image:
     if verbose
-      puts 'Creating a new white image with text.'
+      puts '  Creating a new white image with text.'
       puts "  Dimensions: #{dimensions.join('x')}"
       puts "  Resolution: #{dpi} Pixels/inch"
       puts "  Text: '#{text}'"
@@ -243,7 +293,7 @@ class Postcard
     upper_margin = (half_page_size - small_dimensions.last) / 2
     if verbose
       puts
-      puts "The card will be copied into the page, starting at the point "\
+      puts "  The card will be copied into the page, starting at the point "\
            "[#{left_margin}, #{upper_margin}] from the upper left corner"
       puts '  Composing the result image in memory...'
     end
@@ -258,24 +308,10 @@ class Postcard
     result_image
   end
 
-  # Some images, in particular PDFs with text get the text distorted when rotating.
-  #   It seems to work better with a PNGs.
-  def rotate_image(image, angle: '0', new_filename: nil, verbose: false)
-    if verbose
-      puts
-      puts "Rotating the image #{angle} degrees..."
-    end
-    image.combine_options{ |opt| opt.rotate angle }
-    if new_filename
-      puts("  Saving the image...\n\n") if verbose
-      image.write new_filename
-    end
-  end
-
   def transform_to_pdf(image, new_filename: nil, verbose: false)
     if verbose
       puts
-      puts 'Changing the image format to PDF...'
+      puts '  Changing the image format to PDF...'
     end
     unless new_filename
       puts ('A new PDF file name should be provided') if verbose
