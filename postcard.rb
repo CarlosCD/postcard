@@ -2,26 +2,28 @@
 # frozen_string_literal: true
 
 class Postcard
-  def self.do_it!(args, verbose: true)
-    postcard = self.new(args, verbose: verbose)
+  def self.do_it!(args)
+    verbose = !args.delete('-v').nil?
+    card_filename = args.first.to_s if args.is_a?(Array)
+    postcard = self.new(card_filename, verbose: verbose)
     postcard.do_it!(verbose: verbose)
   end
 
-  def initialize(args = nil, verbose: true)
-    install_gems_and_require 'mini_magick'
-    # Read and verify arguments:
-    card_filename = args.first.to_s if args.is_a?(Array)
+  def initialize(card_filename = nil, verbose: false)
+    # Read and verify card_filename:
     if !card_filename.is_a?(String) || card_filename.empty?
-      puts "Please pass one argument (#{args.size} were received):\n"\
-           "The file name of the smaller image to be inserted in the postcard\n\n"\
-           "If the file name include spaces, include them in quotes.\n\n"
+      puts "Please pass as an argument the file name of the image to be inserted in the postcard.\n\n"\
+           "If the file name include spaces, put the name in quotation marks.\n\n"
       exit(1)
     elsif !File.file?(card_filename)
       # The file exists:
       puts "The given file '#{card_filename}' does not exist."
       exit(1)
     end
-    # This could be an argument or config data, in a YAML file, or a
+    puts 'Source artwork file:'.ljust(28) + "'#{card_filename}'"
+    puts
+    # Configuration:
+    #   This could be an argument or config data, in a YAML file, or a
     #   set of global constants:
     # ---
     @dpi = 1_200
@@ -42,68 +44,71 @@ class Postcard
     @page_dimensions = [ (page_height_inches*@dpi).to_i, (page_width_inches*@dpi).to_i ]
     @half_page = @page_dimensions.last / 2  # 13_200 / 2
     # ---
+    # Dependencies:
+    install_gems_and_require 'mini_magick'
     # Image dimensions check:
-    if verbose
-      puts "Source artwork file: '#{card_filename}'"
-      puts
-      puts 'Calculating the dimension of the image...'
-    end
+    puts('Calculating the dimension of the image...') if verbose
     @card_image = MiniMagick::Image.open(card_filename)
     @card_dimensions = @card_image.dimensions
+    half_page_dimensions = [ @page_dimensions.first, @half_page ]
     if verbose
       puts '  Dimensions:'
       puts "    Postcard:  #{@card_dimensions.join(' x ')} pixels"
       puts "    Page:      #{@page_dimensions.join(' x ')} pixels"
-      half_page_dimensions = [ @page_dimensions.first, @half_page ]
       puts "    Half page: #{half_page_dimensions.join(' x ')} pixels"
     end
-    if (@card_dimensions <=> [ @page_dimensions.first, @half_page ]) != -1
-      puts 'The postcard needs to fit within the page'
+    if (@card_dimensions <=> half_page_dimensions) != -1
+      puts 'Error: the postcard needs to fit within the page'
       exit(1)
-    else
-      puts('  The postcard fits') if verbose
+    elsif verbose
+      puts '  The postcard fits'
     end
     # Image opacity check:
     if @card_image['%[opaque]'] != 'True'
-      puts "The source image '#{card_filename}' should be opaque."
+      puts "The source image '#{card_filename}' should be opaque (no transparencies/alpha channel)."
       exit(1)
     end
   end
 
-  def do_it!(verbose: true)
+  def do_it!(verbose: false)
     # 1. Rotate the artwork upside down:
     result_filename1 = new_filename_from('1.artwork_upsidedown.png')
-    rotate_image @card_image, angle: '180', new_filename: result_filename1
-    # 2. White image with text:
+    rotate_image @card_image, angle: '180', new_filename: result_filename1, verbose: verbose
+    puts '1. Image rotated as'.ljust(28) + "'#{result_filename1}'"
+    # 2. White image with the text:
     result_filename2 = new_filename_from('2.white_page.png', new_extension: '.png')
     new_image = new_white_image_with_text(new_filename: result_filename2,
-                                          dimensions: @page_dimensions, dpi: @dpi,\
+                                          dimensions: @page_dimensions, dpi: @dpi,
                                           text: @text, verbose: verbose)
     if new_image.nil?
       puts 'Unable to create the white image page where to add the card to'
       exit(1)
     end
-    # 3. One image over another:
+    puts '2. White image with text as'.ljust(28) + "'#{result_filename2}'"
+    # 3. Merge one image over the other:
     result_filename3 = new_filename_from('3.images_merged.png')
-    #   The dimensions for the card should not have been changed when rotated upside down:
+    #   The dimensions for the card should not have been changed when rotated it upside down:
     new_image = images_merge(new_image, @card_image, @card_dimensions,
                              @page_dimensions.first, @half_page,
                              new_filename: result_filename3, verbose: verbose)
-    # 4. Rotate the image sideways (landscape):
+    puts '3. Image files merged as'.ljust(28) + "'#{result_filename3}'"
+    # 4. Rotate the image sideways (landscape orientation):
     result_filename4 = new_filename_from('4.rotated_landscape.png')
-    rotate_image new_image, angle: '-90', new_filename: result_filename4
+    rotate_image new_image, angle: '-90', new_filename: result_filename4, verbose: verbose
+    puts '4. Landcape image as'.ljust(28) + "'#{result_filename4}'"
     # 5. Copy of the file as PDF:
     result_filename5 = new_filename_from(@postcard_result_file, new_extension: '.pdf')
-    transform_to_pdf(new_image, new_filename: result_filename5)
+    transform_to_pdf(new_image, new_filename: result_filename5, verbose: verbose)
+    puts '5. Final PDF file, as'.ljust(28) + "'#{result_filename5}'"
   end
 
   private
 
-  def install_gems_and_require(gem_name, verbose: true)
+  def install_gems_and_require(gem_name)
     begin
       Gem::Specification.find_by_name(gem_name)
     rescue Gem::MissingSpecError
-      puts("Installing the '#{gem_name}' Ruby gem...") if verbose
+      puts "Installing the '#{gem_name}' Ruby gem..."
       system "gem install #{gem_name}"
     end
     require gem_name
@@ -112,7 +117,8 @@ class Postcard
   # -- Image manipulations:
 
   # Returns either nil, if something goes wrong, or an Image
-  def new_white_image_with_text(dimensions: [ 10_200, 13_200 ], dpi: 1_200, text: nil, new_filename: nil, verbose: true)
+  def new_white_image_with_text(dimensions: [ 10_200, 13_200 ], dpi: 1_200, text: nil, new_filename: nil,
+                                verbose: false)
     puts if verbose
     # Sanity checks:
     unless (dimensions.is_a?(Array) && (dimensions.size == 2) &&
@@ -133,9 +139,10 @@ class Postcard
       puts 'Creating a new white image with text.'
       puts "  Dimensions: #{dimensions.join('x')}"
       puts "  Resolution: #{dpi} Pixels/inch"
-      puts '  Text:       Arial 6pt.'
-      puts "  New filename: '#{new_filename}'"
+      puts "  Text: '#{text}'"
+      puts '  Text font: Arial 6pt.'
       puts '  ...'
+      puts
     end
     # Magimagick convert command:
     MiniMagick::Tool::Convert.new do |command|
@@ -157,7 +164,7 @@ class Postcard
   end
 
   def images_merge(large_image, small_image, small_dimensions, page_width,
-                   half_page_size, new_filename: nil, verbose: true)
+                   half_page_size, new_filename: nil, verbose: false)
     left_margin  = (page_width - small_dimensions.first) / 2
     upper_margin = (half_page_size - small_dimensions.last) / 2
     if verbose
@@ -171,7 +178,7 @@ class Postcard
       c.geometry "+#{left_margin}+#{upper_margin}"  # Copy from this point
     end
     if new_filename
-      puts("  Saving the image as '#{new_filename}'...") if verbose
+      puts("  Saving the image...\n\n") if verbose
       result_image.write new_filename
     end
     result_image
@@ -179,19 +186,19 @@ class Postcard
 
   # Some images, in particular PDFs with text get the text distorted when rotating.
   #   It seems to work better with a PNGs.
-  def rotate_image(image, angle: '0', new_filename: nil, verbose: true)
+  def rotate_image(image, angle: '0', new_filename: nil, verbose: false)
     if verbose
       puts
       puts "Rotating the image #{angle} degrees..."
     end
     image.combine_options{ |opt| opt.rotate angle }
     if new_filename
-      puts("  Saving the image as '#{new_filename}'...") if verbose
+      puts("  Saving the image...\n\n") if verbose
       image.write new_filename
     end
   end
 
-  def transform_to_pdf(image, new_filename: nil, verbose: true)
+  def transform_to_pdf(image, new_filename: nil, verbose: false)
     if verbose
       puts
       puts 'Changing the image format to PDF...'
@@ -201,7 +208,7 @@ class Postcard
       return
     end
     image.format 'pdf'
-    puts("  Saving the image as '#{new_filename}'...") if verbose
+    puts("  Saving the image...\n\n") if verbose
     image.write new_filename
   end
 
@@ -240,5 +247,5 @@ end
 Postcard.do_it!(ARGV)
 
 puts
-puts 'Bye!'
+puts 'All done. Bye!'
 puts

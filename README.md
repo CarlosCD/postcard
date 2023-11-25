@@ -9,10 +9,16 @@ It requires ImageMagick, which in macOS it can be installed with
 
     brew install imagemagick
 
-Example of usage (with the sample image file):
+Simple example of usage (with a sample image file):
 
     ./postcard.rb sample/artwork.png
 
-This is just a simple utility for me to use, more to come soon, maybe.
+Special options:
 
-April 2023
+    -v  Verbose mode
+
+Example:
+
+    ./postcard.rb -v sample/artwork.png
+
+November 2023
