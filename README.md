@@ -4,24 +4,37 @@
 
 Simple Ruby program to compose holiday cards, ready to print, given a digital image.
 
-It requires ImageMagick, which in macOS it can be installed with
-[Homebrew](https://brew.sh):
+The intent is not to modify the original image file, but to create a `new` PDF file with the result.
+
+### Installation and options
+
+You need Ruby, which usually comes pre-installed in macOS and Linux. Better if you use one of the last
+versions (tested up to version 3.3.0).
+
+It requires ImageMagick, which in macOS it can be installed with [Homebrew](https://brew.sh):
 
     brew install imagemagick
 
-Special options:
+The minimal is to download the `postcard.rb` file. The rest can be generated from running that program.
+Oh, also find the image file you want to use for your postcards.
 
-    -g  Generates a YAML configuration file and exits (no postcard generated).
-        The file can be used to set the text to be printed or the page size.
+Special commad-line options:
 
-    -v  Verbose mode
+    -g  Generates a YAML configuration file (`postcard.yml`) and exits (no postcard images generated).
+        The file can be used to set several options, like the text to be printed or the target page size
 
-Usage examples:
+    -v  Verbose mode. It could be a bit technical. It gives some details for each operation performed.
+
+### A few examples
+
+At a Terminal window:
 
     ./postcard.rb -g
 
-    ./postcard.rb sample/artwork.png
+    ./postcard.rb "My Art Work.png"
 
-    ./postcard.rb -v sample/artwork.png
+    ./postcard.rb -v 0.artwork_large_sample.png
 
-November 2023
+Some examples of output can be seen in the [doc/usage_examples.md](doc/usage_examples.md) file.
+
+December 2023
