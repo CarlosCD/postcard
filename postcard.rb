@@ -36,7 +36,8 @@ class Postcard
                        'page_width'   => 11,
                        'page_height'  => 8.5,
                        'text'         => '',
-                       'result_file'  => 'postcard.pdf' }
+                       'result_file'  => 'postcard.pdf',
+                       'extra_files'  => true }
 
     def generate_config_yaml
       puts "Generating a new configuration file '#{CONFIG_FILENAME}'..."
@@ -50,6 +51,7 @@ class Postcard
       #   page_height:  Final page height in the units used.                                                           Default: 8.5
       #   text:         Text to be used in the back of the postcard (one line, describing the image).                  No default (no text)
       #   result_file:  Name of the result file, PDF format. If it exists it will use a different name.                Default: postcard.pdf
+      #   extra_files:  Boolean, whether to generate or not intermediate files, for debugging purposes.                Default: true
       #
       # Command-line options, overriding this file's (only two considered: artwork_file and verbose):
       #
@@ -85,8 +87,11 @@ class Postcard
               else
                 puts "The value for #{k} is not a valid String. We will ignore it and use a default."
               end
-            elsif (k == :verbose)
+            elsif k == :verbose
               config_hash[k] = verbose || (v == true)
+            elsif k == :extra_files
+              # Defaults to true
+              config_hash[k] = (v != false)
             else
               puts "YAML element '#{k}' is not valid. We will ignore it and use a default."
             end
@@ -135,6 +140,7 @@ class Postcard
     page_units = config[:units] || 'inches'
     @text = config[:text] || ''  # Defaults to no text
     @postcard_result_file = config[:result_file] || 'postcard.pdf'
+    @generate_extra_files = (config[:extra_files] != false) # Defaults to true
     # ---
     # Derived configuration calculations:
     # ---
@@ -174,16 +180,16 @@ class Postcard
 
   def do_it!(verbose: false)
     # 0. Resize only if too large, and adjust dpi:
-    result_filename0 = new_filename_from('0.artwork_resized.png')
+    result_filename0 = new_filename_from('0.artwork_resized.png') if @generate_extra_files
     margin_pixels = (0.5*@dpi).to_i  # 0.5 inches => 600 pixels at 1,200 dpi
     dimension_with_margins = @half_page_dimensions.collect{|s| s - margin_pixels}
     resize_and_dpi_if_larger(@card_image, new_filename: result_filename0,
                              dimensions: dimension_with_margins, dpi: @dpi, verbose: verbose)
     # 1. Rotate the artwork upside down:
-    result_filename1 = new_filename_from('1.artwork_upsidedown.png')
+    result_filename1 = new_filename_from('1.artwork_upsidedown.png') if @generate_extra_files
     rotate_image @card_image, angle: '180', new_filename: result_filename1, message_detail: 'Image rotated', verbose: verbose
     # 2. White image with the text:
-    result_filename2 = new_filename_from('2.white_page.png', new_extension: '.png')
+    result_filename2 = new_filename_from('2.white_page.png', new_extension: '.png') if @generate_extra_files
     new_image = new_white_image_with_text(new_filename: result_filename2,
                                           dimensions: @page_dimensions, dpi: @dpi,
                                           text: @text, verbose: verbose)
@@ -191,14 +197,13 @@ class Postcard
       puts 'Unable to create the white image page where to add the card to'
       exit(1)
     end
-    puts '=> White image with text as'.ljust(28) + "'#{result_filename2}'"
     # 3. Merge one image over the other:
-    result_filename3 = new_filename_from('3.images_merged.png')
+    result_filename3 = new_filename_from('3.images_merged.png') if @generate_extra_files
     new_image = images_merge(new_image, @card_image, @card_image.dimensions,
                              @page_dimensions.first, @half_page,
                              new_filename: result_filename3, verbose: verbose)
     # 4. Rotate the image sideways (landscape orientation):
-    result_filename4 = new_filename_from('4.rotated_landscape.png')
+    result_filename4 = new_filename_from('4.rotated_landscape.png') if @generate_extra_files
     rotate_image new_image, angle: '-90', new_filename: result_filename4, message_detail: 'Landcape image', verbose: verbose
     # 5. Copy of the file as PDF:
     result_filename5 = new_filename_from(@postcard_result_file, new_extension: '.pdf')
@@ -278,9 +283,10 @@ class Postcard
       puts ('dpi should be a positive integer.') if verbose
       return
     end
-    unless new_filename
-      puts ('A new file name should be provided') if verbose
-      return
+    use_temp_filename = new_filename.nil?
+    if use_temp_filename
+      new_filename = new_filename_from('artwork.png', new_extension: '.png')
+      puts ("* Using as a temporary file '#{new_filename}'\n\n") if verbose
     end
     # Create image:
     if verbose
@@ -308,7 +314,14 @@ class Postcard
       # ColorSpace sRGB, instead of Gray:
       command << "PNG24:#{new_filename}"
     end
-    MiniMagick::Image.open(new_filename)
+    img = MiniMagick::Image.open(new_filename)
+    if use_temp_filename
+      puts("* Deleting the temporary file '#{new_filename}'...") if verbose
+      File.delete(new_filename)
+    else
+      puts '=> White image with text as'.ljust(28) + "'#{new_filename}'"
+    end
+    img
   end
 
   def images_merge(large_image, small_image, small_dimensions, page_width,

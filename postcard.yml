@@ -7,6 +7,7 @@
 #   page_height:  Final page height in the units used.                                                           Default: 8.5
 #   text:         Text to be used in the back of the postcard (one line, describing the image).                  No default (no text)
 #   result_file:  Name of the result file, PDF format. If it exists it will use a different name.                Default: postcard.pdf
+#   extra_files:  Boolean, whether to generate or not intermediate files, for debugging purposes.                Default: true
 #
 # Command-line options, overriding this file's (only two considered: artwork_file and verbose):
 #
@@ -21,3 +22,4 @@ page_width: 11
 page_height: 8.5
 text: "(untitled)               Watercolor on paper                https://cdupla.blogspot.com/2023/11/untitled-740.html"
 result_file: 5.postcard-final.pdf
+extra_files: false

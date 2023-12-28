@@ -24,6 +24,7 @@ The file generated has this text (edit it to set your preferences):
     #   page_height:  Final page height in the units used.                                                           Default: 8.5
     #   text:         Text to be used in the back of the postcard (one line, describing the image).                  No default (no text)
     #   result_file:  Name of the result file, PDF format. If it exists it will use a different name.                Default: postcard.pdf
+    #   extra_files:  Boolean, whether to generate or not intermediate files, for debugging purposes.                Default: true
     #
     # Command-line options, overriding this file's (only two considered: artwork_file and verbose):
     #
@@ -38,8 +39,19 @@ The file generated has this text (edit it to set your preferences):
     page_height: 8.5
     text: "(untitled)               Pencil on newspaper                https://my_art_site.example.com/untitled_artwork.html"
     result_file: postcard.pdf
+    extra_files: true
 
-Postcard generation, non verbose, using the provided sample `postcard.yml` configuration, not the one above:
+Postcard generation, non verbose, using the provided sample `postcard.yml` configuration, not the one above (no extra intermediate files):
+
+    ./postcard.rb
+      A configuration YAML file ('postcard.yml') exists, using it...
+      Source artwork file:        '0.artwork_large_sample.png'
+
+      => Final PDF file, as       '5.postcard-final.pdf'
+
+      All done. Bye!
+
+Non verbose too, but creating intermediate images (`extra_files: true`):
 
     ./postcard.rb
       A configuration YAML file ('postcard.yml') exists, using it...
