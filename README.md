@@ -31,6 +31,8 @@ At a Terminal window:
 
     ./postcard.rb -g
 
+    ./postcard.rb
+
     ./postcard.rb "My Art Work.png"
 
     ./postcard.rb -v 0.artwork_large_sample.png

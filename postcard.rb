@@ -9,7 +9,11 @@ class Postcard
       verbose = !args.delete('-v').nil?
       if args.delete('-g').nil?
         config_hash = read_configuration(verbose: verbose)
+        verbose ||= config_hash[:verbose]
         card_filename = args.first.to_s if args.is_a?(Array)
+        if !card_filename.is_a?(String) || card_filename.empty?
+          card_filename = config_hash[:artwork_file] || 'artwork.png'
+        end
         postcard = new(card_filename, config: config_hash, verbose: verbose)
         postcard.do_it!(verbose: verbose)
       else
@@ -25,7 +29,9 @@ class Postcard
     private
 
     CONFIG_FILENAME = 'postcard.yml'
-    DEFAULT_CONFIG = { 'dpi'          => 1_200,
+    DEFAULT_CONFIG = { 'artwork_file' => 'artwork.png',
+                       'verbose'      => false,
+                       'dpi'          => 1_200,
                        'units'        => 'inches',
                        'page_width'   => 11,
                        'page_height'  => 8.5,
@@ -36,12 +42,18 @@ class Postcard
       puts "Generating a new configuration file '#{CONFIG_FILENAME}'..."
       help_prefix = <<~NOTES
       # Configuration options:
+      #   artwork_file: Image, artwork file. It should exist. PNG format preferred (opaque, no transparency set).      Default: artwork.png
+      #   verbose:      Show extra details during the process (equivalent to -v).                                      Default: false
       #   dpi:          Image resolution, for printing, in pixels (dots) per unit given (dots per inch, for example).  Default: 1200
       #   units:        Either "centimeters", or "inches" (case-insensitive).     c                                    Default: inches
       #   page_width:   Final page width, in the units used (11 for the US Letter format, 8.5x11 inches, landscape).   Default: 11
       #   page_height:  Final page height in the units used.                                                           Default: 8.5
       #   text:         Text to be used in the back of the postcard (one line, describing the image).                  No default (no text)
       #   result_file:  Name of the result file, PDF format. If it exists it will use a different name.                Default: postcard.pdf
+      #
+      # Command-line options, overriding this file's (only two considered: artwork_file and verbose):
+      #
+      #   ./postcard.rb artwork.png -v
       #
       NOTES
       helping_config = DEFAULT_CONFIG
@@ -67,12 +79,14 @@ class Postcard
               else
                 puts "The value for #{k} should be Numeric. We will ignore it and use a default."
               end
-            elsif %i(result_file units text).include?(k)
+            elsif %i(artwork_file result_file units text).include?(k)
               if v.is_a?(String) && (v.size > 0) && (k != :units || %w(centimeters inches).include?(v))
                 config_hash[k] = v
               else
                 puts "The value for #{k} is not a valid String. We will ignore it and use a default."
               end
+            elsif (k == :verbose)
+              config_hash[k] = verbose || (v == true)
             else
               puts "YAML element '#{k}' is not valid. We will ignore it and use a default."
             end

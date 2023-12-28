@@ -16,6 +16,8 @@ Creating a default `postcard.yml` file, if it is not there:
 The file generated has this text (edit it to set your preferences):
 
     # Configuration options:
+    #   artwork_file: Image, artwork file. It should exist. PNG format preferred (opaque, no transparency set).      Default: artwork.png
+    #   verbose:      Show extra details during the process (equivalent to -v).                                      Default: false
     #   dpi:          Image resolution, for printing, in pixels (dots) per unit given (dots per inch, for example).  Default: 1200
     #   units:        Either "centimeters", or "inches" (case-insensitive).     c                                    Default: inches
     #   page_width:   Final page width, in the units used (11 for the US Letter format, 8.5x11 inches, landscape).   Default: 11
@@ -23,7 +25,13 @@ The file generated has this text (edit it to set your preferences):
     #   text:         Text to be used in the back of the postcard (one line, describing the image).                  No default (no text)
     #   result_file:  Name of the result file, PDF format. If it exists it will use a different name.                Default: postcard.pdf
     #
+    # Command-line options, overriding this file's (only two considered: artwork_file and verbose):
+    #
+    #   ./postcard.rb artwork.png -v
+    #
     ---
+    artwork_file: artwork.png
+    verbose: false
     dpi: 1200
     units: inches
     page_width: 11
@@ -33,7 +41,7 @@ The file generated has this text (edit it to set your preferences):
 
 Postcard generation, non verbose, using the provided sample `postcard.yml` configuration, not the one above:
 
-    ./postcard.rb 0.artwork_large_sample.png
+    ./postcard.rb
       A configuration YAML file ('postcard.yml') exists, using it...
       Source artwork file:        '0.artwork_large_sample.png'
 
