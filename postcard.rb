@@ -30,15 +30,26 @@ class Postcard
                        'page_width'   => 11,
                        'page_height'  => 8.5,
                        'text'         => '',
-                       'result_file'  => '5.postcard-final.pdf' }
+                       'result_file'  => 'postcard.pdf' }
 
     def generate_config_yaml
       puts "Generating a new configuration file '#{CONFIG_FILENAME}'..."
+      help_prefix = <<~NOTES
+      # Configuration options:
+      #   dpi:          Image resolution, for printing, in pixels (dots) per unit given (dots per inch, for example).  Default: 1200
+      #   units:        Either "centimeters", or "inches" (case-insensitive).     c                                    Default: inches
+      #   page_width:   Final page width, in the units used (11 for the US Letter format, 8.5x11 inches, landscape).   Default: 11
+      #   page_height:  Final page height in the units used.                                                           Default: 8.5
+      #   text:         Text to be used in the back of the postcard (one line, describing the image).                  No default (no text)
+      #   result_file:  Name of the result file, PDF format. If it exists it will use a different name.                Default: postcard.pdf
+      #
+      NOTES
       helping_config = DEFAULT_CONFIG
       # Only to generate the file, but the default text is empty...
       helping_config['text'] = '(untitled)               Pencil on newspaper                '\
                               'https://my_art_site.example.com/untitled_artwork.html'
-      File.open(CONFIG_FILENAME, 'w') {|f| f.write helping_config.to_yaml }
+      full_file_content = help_prefix + helping_config.to_yaml
+      File.open(CONFIG_FILENAME, 'w') {|f| f.write full_file_content }
       puts 'Done.'
     end
 
@@ -109,7 +120,7 @@ class Postcard
     page_height = config[:page_height] || 8.5
     page_units = config[:units] || 'inches'
     @text = config[:text] || ''  # Defaults to no text
-    @postcard_result_file = config[:result_file] || '5.postcard-final.pdf'
+    @postcard_result_file = config[:result_file] || 'postcard.pdf'
     # ---
     # Derived configuration calculations:
     # ---
