@@ -25,24 +25,27 @@ class Postcard
     private
 
     CONFIG_FILENAME = 'postcard.yml'
-    DEFAULT_CONFIG = { 'dpi'         => 1_200,
-                       'page_width'  => 11,
-                       'page_height' => 8.5,
-                       'units'       => 'inches',
-                       'text'        => '(untitled)               Pencil on newspaper                '\
-                                        'https://my_art_site.example.com/untitled_artwork.html',
-                       'result_file' => '5.postcard-final.pdf' }
+    DEFAULT_CONFIG = { 'dpi'          => 1_200,
+                       'units'        => 'inches',
+                       'page_width'   => 11,
+                       'page_height'  => 8.5,
+                       'text'         => '',
+                       'result_file'  => '5.postcard-final.pdf' }
 
     def generate_config_yaml
       puts "Generating a new configuration file '#{CONFIG_FILENAME}'..."
-      File.open(CONFIG_FILENAME, 'w') {|f| f.write DEFAULT_CONFIG.to_yaml }
+      helping_config = DEFAULT_CONFIG
+      # Only to generate the file, but the default text is empty...
+      helping_config['text'] = '(untitled)               Pencil on newspaper                '\
+                              'https://my_art_site.example.com/untitled_artwork.html'
+      File.open(CONFIG_FILENAME, 'w') {|f| f.write helping_config.to_yaml }
       puts 'Done.'
     end
 
     def read_configuration(verbose: false)
       config_hash = {}
       if File.file?(CONFIG_FILENAME)
-        puts "A configuration YAML file ('#{CONFIG_FILENAME}') already exists, using it..."
+        puts "A configuration YAML file ('#{CONFIG_FILENAME}') exists, using it..."
         yaml_content = File.read(CONFIG_FILENAME)
         yaml_hash = YAML.safe_load(yaml_content, symbolize_names: true)
         if yaml_hash.is_a?(Hash)
@@ -70,7 +73,8 @@ class Postcard
           puts "'#{k}' was missing in the configuration YAML file. It will be set as '#{v}'"
         end
       end
-      DEFAULT_CONFIG.each do |k,v|
+      keys_with_values_keys = config_hash.keys.collect(&:to_s)
+      (DEFAULT_CONFIG.keys - keys_with_values_keys).each do |k|
         config_hash[k.to_sym] ||= DEFAULT_CONFIG[k]
       end
       if verbose
@@ -93,7 +97,7 @@ class Postcard
       exit(1)
     elsif !File.file?(card_filename)
       # The file exists:
-      puts "The given file '#{card_filename}' does not exist."
+      puts "The file '#{card_filename}' does not exist."
       exit(1)
     end
     puts 'Source artwork file:'.ljust(28) + "'#{card_filename}'"
@@ -104,8 +108,7 @@ class Postcard
     page_width  = config[:page_width] || 11
     page_height = config[:page_height] || 8.5
     page_units = config[:units] || 'inches'
-    @text = config[:text] || '(untitled)               Pencil on newspaper                '\
-                             'https://my_art_site.example.com/untitled_artwork.html'
+    @text = config[:text] || ''  # Defaults to no text
     @postcard_result_file = config[:result_file] || '5.postcard-final.pdf'
     # ---
     # Derived configuration calculations:
@@ -146,15 +149,14 @@ class Postcard
 
   def do_it!(verbose: false)
     # 0. Resize only if too large, and adjust dpi:
-    result_filename0 = new_filename_from('0.artwork_resize.png')
+    result_filename0 = new_filename_from('0.artwork_resized.png')
     margin_pixels = (0.5*@dpi).to_i  # 0.5 inches => 600 pixels at 1,200 dpi
     dimension_with_margins = @half_page_dimensions.collect{|s| s - margin_pixels}
     resize_and_dpi_if_larger(@card_image, new_filename: result_filename0,
                              dimensions: dimension_with_margins, dpi: @dpi, verbose: verbose)
     # 1. Rotate the artwork upside down:
     result_filename1 = new_filename_from('1.artwork_upsidedown.png')
-    rotate_image @card_image, angle: '180', new_filename: result_filename1, verbose: verbose
-    puts '1. Image rotated as'.ljust(28) + "'#{result_filename1}'"
+    rotate_image @card_image, angle: '180', new_filename: result_filename1, message_detail: 'Image rotated', verbose: verbose
     # 2. White image with the text:
     result_filename2 = new_filename_from('2.white_page.png', new_extension: '.png')
     new_image = new_white_image_with_text(new_filename: result_filename2,
@@ -164,21 +166,19 @@ class Postcard
       puts 'Unable to create the white image page where to add the card to'
       exit(1)
     end
-    puts '2. White image with text as'.ljust(28) + "'#{result_filename2}'"
+    puts '=> White image with text as'.ljust(28) + "'#{result_filename2}'"
     # 3. Merge one image over the other:
     result_filename3 = new_filename_from('3.images_merged.png')
     new_image = images_merge(new_image, @card_image, @card_image.dimensions,
                              @page_dimensions.first, @half_page,
                              new_filename: result_filename3, verbose: verbose)
-    puts '3. Image files merged as'.ljust(28) + "'#{result_filename3}'"
     # 4. Rotate the image sideways (landscape orientation):
     result_filename4 = new_filename_from('4.rotated_landscape.png')
-    rotate_image new_image, angle: '-90', new_filename: result_filename4, verbose: verbose
-    puts '4. Landcape image as'.ljust(28) + "'#{result_filename4}'"
+    rotate_image new_image, angle: '-90', new_filename: result_filename4, message_detail: 'Landcape image', verbose: verbose
     # 5. Copy of the file as PDF:
     result_filename5 = new_filename_from(@postcard_result_file, new_extension: '.pdf')
     transform_to_pdf(new_image, new_filename: result_filename5, verbose: verbose)
-    puts '5. Final PDF file, as'.ljust(28) + "'#{result_filename5}'"
+    puts '=> Final PDF file, as'.ljust(28) + "'#{result_filename5}'"
   end
 
   private
@@ -219,16 +219,14 @@ class Postcard
       if new_filename
         puts("  Saving the image...\n\n") if verbose
         image.write new_filename
-        puts '0. Image resized, as'.ljust(28) + "'#{new_filename}'"
-      else
-        puts '0. Image resized.'
+        puts '=> Image resized, as'.ljust(28) + "'#{new_filename}'"
       end
     end
   end
 
   # Some images, in particular PDFs with text get the text distorted when rotating.
   #   It seems to work better with a PNGs.
-  def rotate_image(image, angle: '0', new_filename: nil, verbose: false)
+  def rotate_image(image, angle: '0', new_filename: nil, message_detail: nil, verbose: false)
     if verbose
       puts
       puts "  Rotating the image #{angle} degrees..."
@@ -237,6 +235,7 @@ class Postcard
     if new_filename
       puts("  Saving the image...\n\n") if verbose
       image.write new_filename
+      puts "=> #{message_detail} as".ljust(28) + "'#{new_filename}'"
     end
   end
 
@@ -304,6 +303,7 @@ class Postcard
     if new_filename
       puts("  Saving the image...\n\n") if verbose
       result_image.write new_filename
+      puts '=> Image files merged as'.ljust(28) + "'#{new_filename}'"
     end
     result_image
   end
