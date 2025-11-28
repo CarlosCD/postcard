@@ -15,15 +15,26 @@ It requires ImageMagick, which in macOS it can be installed with [Homebrew](http
 
     brew install imagemagick
 
-The minimal is to download the `postcard.rb` file. The rest can be generated from running that program.
-Oh, also find the image file you want to use for your postcards.
+The minimum is to download the files:
+
+    postcard.rb
+    Gemfile
+    Gemfile.lock
+
+The rest can be generated from running that program.
+
+After downloading it, run this command once to install a couple of dependencies (Ruby gems):
+
+    bundle
+
+Also find the image file you want to use for your postcards.
 
 Special commad-line options:
 
     -g  Generates a YAML configuration file (`postcard.yml`) and exits (no postcard images generated).
         The file can be used to set several options, like the text to be printed or the target page size
 
-    -v  Verbose mode. It could be a bit technical. It gives some details for each operation performed.
+    -v  Verbose mode. It could be a bit technical. It gives some details for each of the operations performed.
 
 ### A few examples
 

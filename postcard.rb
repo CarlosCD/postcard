@@ -1,6 +1,7 @@
 #!/usr/bin/env ruby
 # frozen_string_literal: true
 
+require 'mini_magick'
 require 'yaml'
 
 class Postcard
@@ -152,8 +153,6 @@ class Postcard
     @page_dimensions = [ (page_height_inches*@dpi).to_i, (page_width_inches*@dpi).to_i ]
     @half_page = @page_dimensions.last / 2  # 13_200 / 2
     # ---
-    # Dependencies:
-    install_gems_and_require 'mini_magick', '4.13.2'
     # Image dimensions check:
     puts('Calculating the dimension of the image...') if verbose
     @card_image = MiniMagick::Image.open(card_filename)
@@ -212,20 +211,6 @@ class Postcard
   end
 
   private
-
-  def install_gems_and_require(gem_name, version)
-    options = { version: version } if version
-    begin
-      Gem::Specification.find_by_name(gem_name, options)
-    rescue Gem::MissingSpecError
-      options_command = gem_name
-      options_command += " -v #{version}" if version
-      puts "Installing the '#{options_command}' Ruby gem..."
-      system "gem install #{options_command}"
-      Gem::Specification.reset
-    end
-    require gem_name
-  end
 
   # -- Image manipulations:
 
