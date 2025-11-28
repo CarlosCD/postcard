@@ -9,7 +9,7 @@ The intent is not to modify the original image file, but to create a `new` PDF f
 ### Installation and options
 
 You need Ruby, which usually comes pre-installed in macOS and Linux. Better if you use one of the last
-versions (tested up to version 3.3.0).
+versions (tested up to version 3.4.7).
 
 It requires ImageMagick, which in macOS it can be installed with [Homebrew](https://brew.sh):
 
@@ -39,4 +39,4 @@ At a Terminal window:
 
 Some examples of output can be seen in the [doc/usage_examples.md](doc/usage_examples.md) file.
 
-December 2023
+November 2025
