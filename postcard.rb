@@ -288,7 +288,7 @@ class Postcard
       puts
     end
     # Magimagick convert command:
-    MiniMagick::Tool::Convert.new do |command|
+    MiniMagick.convert do |command|
       command.size("#{dimensions.join('x')}")
       command << 'canvas:white'
       command.units 'pixelsperinch'
